@@ -82,16 +82,20 @@ jobs:
             "  - Requires Administrator rights to read game memory" \
             > dist/README.txt
 
-          # Bundle any needed MinGW runtime DLLs
+          # Always bundle all three MinGW runtime DLLs (some are indirect deps)
           for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
-            if objdump -p dist/AmongUsCheat.exe | grep -qi "$dll"; then
+            dll_path="$MINGW_BIN/$dll"
+            if [ -f "$dll_path" ]; then
               echo "Bundling $dll"
-              dll_path="$MINGW_BIN/$dll"
-              if [ -f "$dll_path" ]; then
-                cp "$dll_path" dist/
+              cp "$dll_path" dist/
+            else
+              echo "WARNING: $dll not found at $dll_path, searching..."
+              found=$(find /c/msys64 -name "$dll" 2>/dev/null | head -1)
+              if [ -n "$found" ]; then
+                echo "Found at $found, bundling"
+                cp "$found" dist/
               else
-                echo "WARNING: $dll needed but not found at $dll_path"
-                find /c/msys64 -name "$dll" 2>/dev/null | head -1 | xargs -I{} cp {} dist/ || echo "Could not find $dll anywhere"
+                echo "ERROR: $dll not found anywhere!"
               fi
             fi
           done
