@@ -1,0 +1,37 @@
+name: Build AmongUsCheat.exe
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build with MinGW (msys64)
+        shell: bash
+        run: |
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          g++ -O2 -o AmongUsCheat.exe among_us_cheat.cpp \
+            -lpsapi -lwinmm -mwindows -std=c++17
+          echo "Build complete: $(ls -lh AmongUsCheat.exe)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmongUsCheat
+          path: AmongUsCheat.exe
+          retention-days: 90
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AmongUsCheat.exe
