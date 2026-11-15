@@ -15,23 +15,96 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build with MinGW (msys64)
+      - name: Build with MinGW (msys64) — fully static, no DLLs needed
         shell: bash
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"
-          g++ -O2 -o AmongUsCheat.exe among_us_cheat.cpp \
-            -lpsapi -lwinmm -mwindows -std=c++17
-          echo "Build complete: $(ls -lh AmongUsCheat.exe)"
+          g++ -O2 -std=c++17 \
+            -static -static-libgcc -static-libstdc++ \
+            -o AmongUsCheat.exe among_us_cheat.cpp \
+            -lpsapi -lwinmm -mwindows \
+            -Wl,-Bstatic -lpthread -Wl,-Bdynamic
+          echo "=== Build complete ==="
+          ls -lh AmongUsCheat.exe
 
-      - name: Upload artifact
+      - name: Verify no external MinGW DLLs required
+        shell: bash
+        run: |
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          echo "--- DLL imports ---"
+          objdump -p AmongUsCheat.exe | grep "DLL Name"
+          # Fail if any MinGW runtime DLL is still linked
+          if objdump -p AmongUsCheat.exe | grep -qi "libgcc\|libstdc\|libwinpthread"; then
+            echo "ERROR: MinGW runtime DLLs still present!"
+            exit 1
+          fi
+          echo "OK: no MinGW runtime DLLs — exe is self-contained"
+
+      - name: Package into ZIP with README
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp AmongUsCheat.exe dist/
+
+          cat > dist/README.txt << 'EOF'
+          ==========================================
+           AMONG US EXTERNAL CHEAT - KAKU DEV
+          ==========================================
+
+          REQUIREMENTS:
+          - Windows 10/11 (64-bit)
+          - Among Us running (Steam)
+          - Run as Administrator
+
+          HOW TO USE:
+          1. Launch Among Us
+          2. Right-click AmongUsCheat.exe -> Run as Administrator
+          3. Wait for "Attached!" message
+
+          HOTKEYS:
+          F1   Speed Hack (3x default)
+          F2   Infinite Vision
+          F3   No Kill Cooldown
+          F4   Reveal Impostors (ESP)
+          F5   Always Impostor
+          F6   Ghost Mode (No Clip)
+          F7   Auto Kill (nearest)
+          F8   Walls / Position ESP
+          F9   Set custom speed multiplier
+          F10  Re-attach to Among Us
+          F11  Dump all player positions
+          END  Exit cleanly (restores original values)
+
+          NOTES:
+          - No DLLs needed — fully self-contained exe
+          - Closes cleanly on END key, restoring speed/vision
+          - Offsets for Among Us v2024 (GameAssembly.dll)
+          EOF
+
+          cd dist
+          7z a ../AmongUsCheat_Package.zip AmongUsCheat.exe README.txt
+          cd ..
+          echo "=== Package ready ==="
+          ls -lh AmongUsCheat_Package.zip
+
+      - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AmongUsCheat
+          name: AmongUsCheat-exe
           path: AmongUsCheat.exe
+          retention-days: 90
+
+      - name: Upload full ZIP package
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmongUsCheat-ZIP
+          path: AmongUsCheat_Package.zip
           retention-days: 90
 
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: AmongUsCheat.exe
+          files: |
+            AmongUsCheat.exe
+            AmongUsCheat_Package.zip
