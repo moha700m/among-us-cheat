@@ -575,8 +575,6 @@ void PrintBanner() {
 
 void PrintMenu() {
     auto S = [](bool on) -> const char* { return on ? "ON " : "OFF"; };
-    Color sc(Color c, bool on) {};   // lambda placeholder — use inline below
-
     auto C = [](bool on) -> Color { return on ? COL_GREEN : COL_GREY; };
 
     Print(COL_YELLOW, "  Hotkeys:\n");
