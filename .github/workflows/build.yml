@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build with MinGW (msys64) — fully static, no DLLs needed
+      - name: Build with MinGW (msys64)
         shell: bash
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"
@@ -27,62 +27,70 @@ jobs:
           echo "=== Build complete ==="
           ls -lh AmongUsCheat.exe
 
-      - name: Verify no external MinGW DLLs required
+      - name: Show DLL dependencies
         shell: bash
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"
-          echo "--- DLL imports ---"
+          echo "--- All DLL imports ---"
           objdump -p AmongUsCheat.exe | grep "DLL Name"
-          # Fail if any MinGW runtime DLL is still linked
-          if objdump -p AmongUsCheat.exe | grep -qi "libgcc\|libstdc\|libwinpthread"; then
-            echo "ERROR: MinGW runtime DLLs still present!"
-            exit 1
-          fi
-          echo "OK: no MinGW runtime DLLs — exe is self-contained"
 
-      - name: Package into ZIP with README
+      - name: Package into ZIP with runtime DLLs + README
         shell: bash
         run: |
+          export PATH="/c/msys64/mingw64/bin:$PATH"
           mkdir -p dist
           cp AmongUsCheat.exe dist/
 
+          # Bundle any MinGW runtime DLLs the exe needs
+          # (api-ms-win-crt-* are Windows built-in on Win10+, skip those)
+          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
+            if objdump -p dist/AmongUsCheat.exe | grep -qi "$dll"; then
+              echo "Bundling: $dll"
+              cp "/c/msys64/mingw64/bin/$dll" dist/ 2>/dev/null && echo "  -> copied" || echo "  -> not found, skipping"
+            fi
+          done
+
           cat > dist/README.txt << 'EOF'
-          ==========================================
-           AMONG US EXTERNAL CHEAT - KAKU DEV
-          ==========================================
+==========================================
+ AMONG US EXTERNAL CHEAT - KAKU DEV
+==========================================
 
-          REQUIREMENTS:
-          - Windows 10/11 (64-bit)
-          - Among Us running (Steam)
-          - Run as Administrator
+REQUIREMENTS:
+- Windows 10/11 (64-bit)
+- Among Us running (Steam)
+- Run as Administrator
 
-          HOW TO USE:
-          1. Launch Among Us
-          2. Right-click AmongUsCheat.exe -> Run as Administrator
-          3. Wait for "Attached!" message
+HOW TO USE:
+1. Extract all files from this zip to a folder
+2. Launch Among Us
+3. Right-click AmongUsCheat.exe -> Run as Administrator
+4. Wait for "Attached!" message in the console window
 
-          HOTKEYS:
-          F1   Speed Hack (3x default)
-          F2   Infinite Vision
-          F3   No Kill Cooldown
-          F4   Reveal Impostors (ESP)
-          F5   Always Impostor
-          F6   Ghost Mode (No Clip)
-          F7   Auto Kill (nearest)
-          F8   Walls / Position ESP
-          F9   Set custom speed multiplier
-          F10  Re-attach to Among Us
-          F11  Dump all player positions
-          END  Exit cleanly (restores original values)
+HOTKEYS:
+F1   Speed Hack (3x default)
+F2   Infinite Vision
+F3   No Kill Cooldown
+F4   Reveal Impostors (ESP)
+F5   Always Impostor
+F6   Ghost Mode (No Clip)
+F7   Auto Kill (nearest)
+F8   Walls / Position ESP
+F9   Set custom speed multiplier
+F10  Re-attach to Among Us
+F11  Dump all player positions
+END  Exit cleanly (restores original values)
 
-          NOTES:
-          - No DLLs needed — fully self-contained exe
-          - Closes cleanly on END key, restoring speed/vision
-          - Offsets for Among Us v2024 (GameAssembly.dll)
-          EOF
+NOTES:
+- Keep ALL files in the zip in the SAME folder as the exe
+- Closes cleanly on END key, restoring speed/vision
+- Offsets for Among Us v2024 (GameAssembly.dll)
+- Requires Administrator rights to read game memory
+EOF
 
+          echo "=== Contents ==="
+          ls -lh dist/
           cd dist
-          7z a ../AmongUsCheat_Package.zip AmongUsCheat.exe README.txt
+          7z a ../AmongUsCheat_Package.zip ./*
           cd ..
           echo "=== Package ready ==="
           ls -lh AmongUsCheat_Package.zip
